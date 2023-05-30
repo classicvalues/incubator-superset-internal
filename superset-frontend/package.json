@@ -271,7 +271,7 @@
     "@types/sinon": "^9.0.5",
     "@types/tinycolor2": "^1.4.3",
     "@types/yargs": "12 - 15",
-    "@typescript-eslint/eslint-plugin": "^5.3.0",
+    "@typescript-eslint/eslint-plugin": "^5.59.8",
     "@typescript-eslint/parser": "^5.3.0",
     "babel-jest": "^26.6.3",
     "babel-loader": "^8.2.2",
