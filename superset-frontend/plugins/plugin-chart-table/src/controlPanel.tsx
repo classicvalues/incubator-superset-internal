@@ -23,7 +23,10 @@ import {
   ensureIsArray,
   FeatureFlag,
   GenericDataType,
+  hasGenericChartAxes,
+  isAdhocColumn,
   isFeatureEnabled,
+  isPhysicalColumn,
   QueryFormColumn,
   QueryMode,
   smartDateFormatter,
@@ -41,7 +44,6 @@ import {
   sharedControls,
   ControlPanelState,
   ControlState,
-  emitFilterControl,
   Dataset,
   ColumnMeta,
   defineSavedMetrics,
@@ -145,7 +147,7 @@ const percentMetricsControl: typeof sharedControls.metrics = {
 
 const config: ControlPanelConfig = {
   controlPanelSections: [
-    sections.legacyTimeseriesTime,
+    sections.genericTime,
     {
       label: t('Query'),
       expanded: true,
@@ -185,6 +187,37 @@ const config: ControlPanelConfig = {
               rerender: ['metrics', 'percent_metrics'],
             },
           },
+        ],
+        [
+          hasGenericChartAxes && isAggMode
+            ? {
+                name: 'time_grain_sqla',
+                config: {
+                  ...sharedControls.time_grain_sqla,
+                  visibility: ({ controls }) => {
+                    const dttmLookup = Object.fromEntries(
+                      ensureIsArray(controls?.groupby?.options).map(option => [
+                        option.column_name,
+                        option.is_dttm,
+                      ]),
+                    );
+
+                    return ensureIsArray(controls?.groupby.value)
+                      .map(selection => {
+                        if (isAdhocColumn(selection)) {
+                          return true;
+                        }
+                        if (isPhysicalColumn(selection)) {
+                          return !!dttmLookup[selection];
+                        }
+                        return false;
+                      })
+                      .some(Boolean);
+                  },
+                },
+              }
+            : null,
+          hasGenericChartAxes && isAggMode ? 'temporal_columns_lookup' : null,
         ],
         [
           {
@@ -294,20 +327,24 @@ const config: ControlPanelConfig = {
             },
           },
         ],
+        !hasGenericChartAxes
+          ? [
+              {
+                name: 'include_time',
+                config: {
+                  type: 'CheckboxControl',
+                  label: t('Include time'),
+                  description: t(
+                    'Whether to include the time granularity as defined in the time section',
+                  ),
+                  default: false,
+                  visibility: isAggMode,
+                  resetOnHide: false,
+                },
+              },
+            ]
+          : [null],
         [
-          {
-            name: 'include_time',
-            config: {
-              type: 'CheckboxControl',
-              label: t('Include time'),
-              description: t(
-                'Whether to include the time granularity as defined in the time section',
-              ),
-              default: false,
-              visibility: isAggMode,
-              resetOnHide: false,
-            },
-          },
           {
             name: 'order_desc',
             config: {
@@ -335,7 +372,6 @@ const config: ControlPanelConfig = {
             },
           },
         ],
-        emitFilterControl,
       ],
     },
     {
@@ -454,7 +490,6 @@ const config: ControlPanelConfig = {
                   queryResponse: chart?.queriesResponse?.[0] as
                     | ChartDataResponseResult
                     | undefined,
-                  emitFilter: explore?.controls?.table_filter?.value,
                 };
               },
             },
@@ -479,6 +514,7 @@ const config: ControlPanelConfig = {
                 )
                   ? (explore?.datasource as Dataset)?.verbose_map
                   : explore?.datasource?.columns ?? {};
+                const chartStatus = chart?.chartStatus;
                 const { colnames, coltypes } =
                   chart?.queriesResponse?.[0] ?? {};
                 const numericColumns =
@@ -494,6 +530,7 @@ const config: ControlPanelConfig = {
                         }))
                     : [];
                 return {
+                  removeIrrelevantConditions: chartStatus === 'success',
                   columnOptions: numericColumns,
                   verboseMap,
                 };

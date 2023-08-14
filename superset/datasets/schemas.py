@@ -55,7 +55,7 @@ class DatasetColumnsPutSchema(Schema):
     extra = fields.String(allow_none=True)
     filterable = fields.Boolean()
     groupby = fields.Boolean()
-    is_active = fields.Boolean()
+    is_active = fields.Boolean(allow_none=True)
     is_dttm = fields.Boolean(default=False)
     python_date_format = fields.String(
         allow_none=True, validate=[Length(1, 255), validate_python_date_format]
@@ -80,6 +80,7 @@ class DatasetPostSchema(Schema):
     database = fields.Integer(required=True)
     schema = fields.String(validate=Length(0, 250))
     table_name = fields.String(required=True, allow_none=False, validate=Length(1, 250))
+    sql = fields.String(allow_none=True)
     owners = fields.List(fields.Integer())
     is_managed_externally = fields.Boolean(allow_none=True, default=False)
     external_url = fields.String(allow_none=True)
@@ -225,6 +226,17 @@ class ImportV1DatasetSchema(Schema):
     data = fields.URL()
     is_managed_externally = fields.Boolean(allow_none=True, default=False)
     external_url = fields.String(allow_none=True)
+
+
+class GetOrCreateDatasetSchema(Schema):
+    table_name = fields.String(required=True, description="Name of table")
+    database_id = fields.Integer(
+        required=True, description="ID of database table belongs to"
+    )
+    schema = fields.String(
+        description="The schema the table belongs to", allow_none=True
+    )
+    template_params = fields.String(description="Template params for the table")
 
 
 class DatasetSchema(SQLAlchemyAutoSchema):

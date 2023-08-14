@@ -28,7 +28,7 @@ import React, {
   useCallback,
   useImperativeHandle,
 } from 'react';
-import { ensureIsArray, styled, t } from '@superset-ui/core';
+import { ensureIsArray, t } from '@superset-ui/core';
 import { LabeledValue as AntdLabeledValue } from 'antd/lib/select';
 import debounce from 'lodash/debounce';
 import { isEqual } from 'lodash';
@@ -39,20 +39,8 @@ import {
   getValue,
   hasOption,
   isLabeledValue,
-  DEFAULT_SORT_COMPARATOR,
-  EMPTY_OPTIONS,
-  MAX_TAG_COUNT,
-  SelectOptionsPagePromise,
-  SelectOptionsType,
-  SelectOptionsTypePage,
-  StyledCheckOutlined,
-  StyledStopOutlined,
-  TOKEN_SEPARATORS,
   renderSelectOptions,
-  StyledContainer,
-  StyledSelect,
   hasCustomLabels,
-  BaseSelectProps,
   sortSelectedFirstHelper,
   sortComparatorWithSearchHelper,
   sortComparatorForNoSearchHelper,
@@ -60,64 +48,30 @@ import {
   dropDownRenderHelper,
   handleFilterOptionHelper,
 } from './utils';
-
-const StyledError = styled.div`
-  ${({ theme }) => `
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    width: 100%;
-    padding: ${theme.gridUnit * 2}px;
-    color: ${theme.colors.error.base};
-    & svg {
-      margin-right: ${theme.gridUnit * 2}px;
-    }
-  `}
-`;
-
-const StyledErrorMessage = styled.div`
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const DEFAULT_PAGE_SIZE = 100;
-
-export type AsyncSelectRef = HTMLInputElement & { clearCache: () => void };
-
-export interface AsyncSelectProps extends BaseSelectProps {
-  /**
-   * It fires a request against the server after
-   * the first interaction and not on render.
-   * Works in async mode only (See the options property).
-   * True by default.
-   */
-  lazyLoading?: boolean;
-  /**
-   * It defines the options of the Select.
-   * The options are async, a promise that returns
-   * an array of options.
-   */
-  options: SelectOptionsPagePromise;
-  /**
-   * It defines how many results should be included
-   * in the query response.
-   * Works in async mode only (See the options property).
-   */
-  pageSize?: number;
-  /**
-   * It fires a request against the server only after
-   * searching.
-   * Works in async mode only (See the options property).
-   * Undefined by default.
-   */
-  fetchOnlyOnSearch?: boolean;
-  /**
-   * It provides a callback function when an error
-   * is generated after a request is fired.
-   * Works in async mode only (See the options property).
-   */
-  onError?: (error: string) => void;
-}
+import {
+  AsyncSelectProps,
+  AsyncSelectRef,
+  SelectOptionsPagePromise,
+  SelectOptionsType,
+  SelectOptionsTypePage,
+} from './types';
+import {
+  StyledCheckOutlined,
+  StyledContainer,
+  StyledError,
+  StyledErrorMessage,
+  StyledHeader,
+  StyledSelect,
+  StyledStopOutlined,
+} from './styles';
+import {
+  DEFAULT_PAGE_SIZE,
+  EMPTY_OPTIONS,
+  MAX_TAG_COUNT,
+  TOKEN_SEPARATORS,
+  DEFAULT_SORT_COMPARATOR,
+} from './constants';
+import { customTagRender } from './CustomTag';
 
 const Error = ({ error }: { error: string }) => (
   <StyledError>
@@ -151,6 +105,7 @@ const AsyncSelect = forwardRef(
       fetchOnlyOnSearch,
       filterOption = true,
       header = null,
+      headerPosition = 'top',
       helperText,
       invertSelection = false,
       lazyLoading = true,
@@ -171,6 +126,8 @@ const AsyncSelect = forwardRef(
       tokenSeparators,
       value,
       getPopupContainer,
+      oneLine,
+      maxTagCount: propsMaxTagCount,
       ...props
     }: AsyncSelectProps,
     ref: RefObject<AsyncSelectRef>,
@@ -185,6 +142,7 @@ const AsyncSelect = forwardRef(
     const [totalCount, setTotalCount] = useState(0);
     const [loadingEnabled, setLoadingEnabled] = useState(!lazyLoading);
     const [allValuesLoaded, setAllValuesLoaded] = useState(false);
+    const selectValueRef = useRef(selectValue);
     const fetchedQueries = useRef(new Map<string, number>());
     const mappedMode = isSingleMode
       ? undefined
@@ -193,10 +151,24 @@ const AsyncSelect = forwardRef(
       : 'multiple';
     const allowFetch = !fetchOnlyOnSearch || inputValue;
 
+    const [maxTagCount, setMaxTagCount] = useState(
+      propsMaxTagCount ?? MAX_TAG_COUNT,
+    );
+
+    useEffect(() => {
+      if (oneLine) {
+        setMaxTagCount(isDropdownVisible ? 0 : 1);
+      }
+    }, [isDropdownVisible, oneLine]);
+
+    useEffect(() => {
+      selectValueRef.current = selectValue;
+    }, [selectValue]);
+
     const sortSelectedFirst = useCallback(
       (a: AntdLabeledValue, b: AntdLabeledValue) =>
-        sortSelectedFirstHelper(a, b, selectValue),
-      [selectValue],
+        sortSelectedFirstHelper(a, b, selectValueRef.current),
+      [],
     );
 
     const sortComparatorWithSearch = useCallback(
@@ -222,18 +194,8 @@ const AsyncSelect = forwardRef(
       [sortComparator, sortSelectedFirst],
     );
 
-    const initialOptions = useMemo(
-      () =>
-        options && Array.isArray(options) ? options.slice() : EMPTY_OPTIONS,
-      [options],
-    );
-    const initialOptionsSorted = useMemo(
-      () => initialOptions.slice().sort(sortComparatorForNoSearch),
-      [initialOptions, sortComparatorForNoSearch],
-    );
-
     const [selectOptions, setSelectOptions] =
-      useState<SelectOptionsType>(initialOptionsSorted);
+      useState<SelectOptionsType>(EMPTY_OPTIONS);
 
     // add selected values to options list if they are not in it
     const fullSelectOptions = useMemo(() => {
@@ -334,6 +296,7 @@ const AsyncSelect = forwardRef(
           return;
         }
         setIsLoading(true);
+
         const fetchOptions = options as SelectOptionsPagePromise;
         fetchOptions(search, page, pageSize)
           .then(({ data, totalCount }: SelectOptionsTypePage) => {
@@ -342,7 +305,7 @@ const AsyncSelect = forwardRef(
             setTotalCount(totalCount);
             if (
               !fetchOnlyOnSearch &&
-              value === '' &&
+              search === '' &&
               mergedData.length >= totalCount
             ) {
               setAllValuesLoaded(true);
@@ -360,7 +323,6 @@ const AsyncSelect = forwardRef(
         internalOnError,
         options,
         pageSize,
-        value,
       ],
     );
 
@@ -469,8 +431,8 @@ const AsyncSelect = forwardRef(
       // when `options` list is updated from component prop, reset states
       fetchedQueries.current.clear();
       setAllValuesLoaded(false);
-      setSelectOptions(initialOptions);
-    }, [initialOptions]);
+      setSelectOptions(EMPTY_OPTIONS);
+    }, [options]);
 
     useEffect(() => {
       setSelectValue(value);
@@ -512,13 +474,11 @@ const AsyncSelect = forwardRef(
       [ref],
     );
 
-    useEffect(() => {
-      setSelectValue(value);
-    }, [value]);
-
     return (
-      <StyledContainer>
-        {header}
+      <StyledContainer headerPosition={headerPosition}>
+        {header && (
+          <StyledHeader headerPosition={headerPosition}>{header}</StyledHeader>
+        )}
         <StyledSelect
           allowClear={!isLoading && allowClear}
           aria-label={ariaLabel || name}
@@ -528,8 +488,9 @@ const AsyncSelect = forwardRef(
           getPopupContainer={
             getPopupContainer || (triggerNode => triggerNode.parentNode)
           }
+          headerPosition={headerPosition}
           labelInValue
-          maxTagCount={MAX_TAG_COUNT}
+          maxTagCount={maxTagCount}
           mode={mappedMode}
           notFoundContent={isLoading ? t('Loading...') : notFoundContent}
           onDeselect={handleOnDeselect}
@@ -550,11 +511,13 @@ const AsyncSelect = forwardRef(
           suffixIcon={getSuffixIcon(isLoading, showSearch, isDropdownVisible)}
           menuItemSelectedIcon={
             invertSelection ? (
-              <StyledStopOutlined iconSize="m" />
+              <StyledStopOutlined iconSize="m" aria-label="stop" />
             ) : (
-              <StyledCheckOutlined iconSize="m" />
+              <StyledCheckOutlined iconSize="m" aria-label="check" />
             )
           }
+          oneLine={oneLine}
+          tagRender={customTagRender}
           {...props}
           ref={ref}
         >

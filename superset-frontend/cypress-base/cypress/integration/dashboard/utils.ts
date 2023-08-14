@@ -33,12 +33,14 @@ export const WORLD_HEALTH_CHARTS = [
   { name: 'Box plot', viz: 'box_plot' },
 ] as ChartSpec[];
 
-export const ECHARTS_CHARTS = [
-  { name: 'Number of Girls', viz: 'big_number_total' },
-  { name: 'Participants', viz: 'big_number' },
-  { name: 'Box plot', viz: 'box_plot' },
-  { name: 'Genders', viz: 'pie' },
-  { name: 'Energy Force Layout', viz: 'graph_chart' },
+export const SUPPORTED_TIER1_CHARTS = [
+  { name: 'Big Number', viz: 'big_number_total' },
+  { name: 'Big Number with Trendline', viz: 'big_number' },
+  { name: 'Pie Chart', viz: 'pie' },
+] as ChartSpec[];
+
+export const SUPPORTED_TIER2_CHARTS = [
+  { name: 'Box Plot Chart', viz: 'box_plot' },
 ] as ChartSpec[];
 
 export const testItems = {
@@ -83,6 +85,7 @@ export const nativeFilterTooltips = {
   multipleSelect: 'Allow selecting multiple values',
   defaultValue:
     'Default value must be set when "Filter value is required" is checked',
+  preFilter: `Add filter clauses to control the filter's source query, though only in the context of the autocomplete i.e., these conditions do not impact how the filter is applied to the dashboard. This is useful when you want to improve the query's performance by only scanning a subset of the underlying data or limit the available values displayed in the filter.`,
 };
 
 export const nativeFilterOptions = [
@@ -137,11 +140,15 @@ export function interceptLog() {
 }
 
 export function interceptFav() {
-  cy.intercept(`/superset/favstar/Dashboard/*/select/`).as('select');
+  cy.intercept({ url: `/api/v1/dashboard/*/favorites/`, method: 'POST' }).as(
+    'select',
+  );
 }
 
 export function interceptUnfav() {
-  cy.intercept(`/superset/favstar/Dashboard/*/unselect/`).as('unselect');
+  cy.intercept({ url: `/api/v1/dashboard/*/favorites/`, method: 'POST' }).as(
+    'unselect',
+  );
 }
 
 export function interceptDataset() {
@@ -154,6 +161,12 @@ export function interceptCharts() {
 
 export function interceptDatasets() {
   cy.intercept('GET', `/api/v1/dashboard/*/datasets`).as('getDatasets');
+}
+
+export function interceptFilterState() {
+  cy.intercept('POST', `/api/v1/dashboard/*/filter_state*`).as(
+    'postFilterState',
+  );
 }
 
 export function setFilter(filter: string, option: string) {
@@ -294,11 +307,12 @@ export function getNativeFilterPlaceholderWithIndex(index: number) {
 export function applyNativeFilterValueWithIndex(index: number, value: string) {
   cy.get(nativeFilters.filterFromDashboardView.filterValueInput)
     .eq(index)
-    .parent()
-    .should('be.visible', { timeout: 10000 })
+    .should('exist', { timeout: 10000 })
     .type(`${value}{enter}`);
   // click the title to dismiss shown options
-  cy.get(nativeFilters.filterFromDashboardView.filterName).eq(index).click();
+  cy.get(nativeFilters.filterFromDashboardView.filterName)
+    .eq(index)
+    .click({ force: true });
 }
 
 /** ************************************************************************
@@ -334,7 +348,7 @@ export function saveNativeFilterSettings(charts: ChartSpec[]) {
 }
 
 /** ************************************************************************
- * Cancel Native fitler settings
+ * Cancel Native filter settings
  * @returns {None}
  * @summary helper for cancel native filters settings
  ************************************************************************* */
@@ -344,8 +358,8 @@ export function cancelNativeFilterSettings() {
     .should('be.visible')
     .click();
   cy.get(nativeFilters.modal.alertXUnsavedFilters)
-    .should('have.text', 'There are unsaved changes.')
-    .should('be.visible');
+    .should('be.visible')
+    .should('have.text', 'There are unsaved changes.');
   cy.get(nativeFilters.modal.footer)
     .find(nativeFilters.modal.yesCancelButton)
     .contains('cancel')
@@ -449,18 +463,34 @@ export function applyAdvancedTimeRangeFilterOnDashboard(
  * @return {null}
  * @summary helper for input default valule in Native filter in filter settings
  ************************************************************************* */
-export function inputNativeFilterDefaultValue(defaultValue: string) {
-  cy.contains('Filter has default value').click();
-  cy.contains('Default value is required').should('be.visible');
-  cy.get(nativeFilters.modal.container).within(() => {
-    cy.get(nativeFilters.filterConfigurationSections.filterPlaceholder)
-      .contains('options')
-      .should('be.visible');
-    cy.get(nativeFilters.filterConfigurationSections.collapsedSectionContainer)
-      .first()
-      .get(nativeFilters.filtersPanel.columnEmptyInput)
-      .type(`${defaultValue}{enter}`);
-  });
+export function inputNativeFilterDefaultValue(
+  defaultValue: string,
+  multiple = false,
+) {
+  if (!multiple) {
+    cy.contains('Filter has default value').click();
+    cy.contains('Default value is required').should('be.visible');
+    cy.get(nativeFilters.modal.container).within(() => {
+      cy.get(
+        nativeFilters.filterConfigurationSections.filterPlaceholder,
+      ).contains('options');
+      cy.get(
+        nativeFilters.filterConfigurationSections.collapsedSectionContainer,
+      )
+        .eq(1)
+        .within(() => {
+          cy.get('.ant-select-selection-search-input').type(
+            `${defaultValue}{enter}`,
+            { force: true },
+          );
+        });
+    });
+  } else {
+    cy.getBySel('default-input').within(() => {
+      cy.get('.ant-select-selection-search-input').click();
+      cy.get('.ant-select-item-option-content').contains(defaultValue).click();
+    });
+  }
 }
 
 /** ************************************************************************
@@ -475,4 +505,13 @@ export function addCountryNameFilter() {
     testItems.datasetForNativeFilter,
     testItems.topTenChart.filterColumn,
   );
+}
+
+export function openTab(tabComponentIndex: number, tabIndex: number) {
+  return cy
+    .getBySel('dashboard-component-tabs')
+    .eq(tabComponentIndex)
+    .find('[role="tab"]')
+    .eq(tabIndex)
+    .click();
 }
