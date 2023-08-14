@@ -36,7 +36,7 @@ packaging==23.1
     #   tox
 pep517==0.11.0
     # via build
-pip-compile-multi==2.6.2
+pip-compile-multi==2.6.3
     # via -r integration.in
 pip-tools==6.8.0
     # via pip-compile-multi
@@ -46,6 +46,7 @@ platformdirs==3.8.1
     #   virtualenv
 pluggy==1.2.0
     # via tox
+py==1.10.0
 pre-commit==3.3.3
     # via -r integration.in
 pyproject-api==1.5.3
