@@ -156,7 +156,7 @@
     "mapbox-gl": "^2.10.0",
     "match-sorter": "^6.1.0",
     "memoize-one": "^5.1.1",
-    "moment": "^2.26.0",
+    "moment": "^2.30.1",
     "moment-timezone": "^0.5.37",
     "mousetrap": "^1.6.1",
     "mustache": "^2.2.1",
