@@ -36,7 +36,7 @@
     "@vx/scale": "^0.0.197",
     "csstype": "^2.6.3",
     "encodable": "^0.7.6",
-    "lodash": "^4.17.11",
+    "lodash": "^4.18.1",
     "reselect": "^4.0.0"
   },
   "peerDependencies": {
