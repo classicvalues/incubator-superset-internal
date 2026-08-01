@@ -10,8 +10,8 @@
   "author": "Apache",
   "license": "Apache-2.0",
   "dependencies": {
-    "@applitools/eyes-cypress": "^3.29.1",
-    "@cypress/code-coverage": "^3.9.11",
+    "@applitools/eyes-cypress": "^3.60.13",
+    "@cypress/code-coverage": "^4.0.3",
     "@superset-ui/core": "^0.18.8",
     "brace": "^0.11.1",
     "cy-verify-downloads": "^0.1.6",
